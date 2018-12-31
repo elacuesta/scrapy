@@ -210,6 +210,7 @@ Extending Scrapy
    topics/extensions
    topics/api
    topics/signals
+   topics/scheduler
    topics/exporters
 
 
@@ -230,6 +231,9 @@ Extending Scrapy
 
 :doc:`topics/signals`
     See all available signals and how to work with them.
+
+:doc:`topics/scheduler`
+    Understand the Scheduler interface.
 
 :doc:`topics/exporters`
     Quickly export your scraped items to a file (XML, CSV, etc).
