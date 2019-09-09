@@ -6,20 +6,18 @@ import warnings
 from twisted.internet import reactor, defer
 from zope.interface.verify import verifyClass, DoesNotImplement
 
-from scrapy import Spider
+from scrapy import signals, Spider
 from scrapy.core.engine import ExecutionEngine
-from scrapy.resolver import CachingThreadedResolver
-from scrapy.interfaces import ISpiderLoader
+from scrapy.exceptions import ScrapyDeprecationWarning
 from scrapy.extension import ExtensionManager
+from scrapy.interfaces import ISpiderLoader
+from scrapy.resolver import CachingHostnameResolver
 from scrapy.settings import overridden_settings, Settings
 from scrapy.signalmanager import SignalManager
-from scrapy.exceptions import ScrapyDeprecationWarning
-from scrapy.utils.ossignal import install_shutdown_handlers, signal_names
+from scrapy.utils.log import (configure_logging, get_scrapy_root_handler,
+                              install_scrapy_root_handler, log_scrapy_info, LogCounterHandler)
 from scrapy.utils.misc import load_object
-from scrapy.utils.log import (
-    LogCounterHandler, configure_logging, log_scrapy_info,
-    get_scrapy_root_handler, install_scrapy_root_handler)
-from scrapy import signals
+from scrapy.utils.ossignal import install_shutdown_handlers, signal_names
 
 
 logger = logging.getLogger(__name__)
@@ -293,7 +291,7 @@ class CrawlerProcess(CrawlerRunner):
                 return
             d.addBoth(self._stop_reactor)
 
-        reactor.installResolver(self._get_dns_resolver())
+        reactor.installNameResolver(self._get_dns_resolver())
         tp = reactor.getThreadPool()
         tp.adjustPoolsize(maxthreads=self.settings.getint('REACTOR_THREADPOOL_MAXSIZE'))
         reactor.addSystemEventTrigger('before', 'shutdown', self.stop)
@@ -304,10 +302,10 @@ class CrawlerProcess(CrawlerRunner):
             cache_size = self.settings.getint('DNSCACHE_SIZE')
         else:
             cache_size = 0
-        return CachingThreadedResolver(
-            reactor=reactor,
+        return CachingHostnameResolver(
+            resolver=reactor.nameResolver,
             cache_size=cache_size,
-            timeout=self.settings.getfloat('DNS_TIMEOUT')
+            timeout=self.settings.getfloat('DNS_TIMEOUT'),
         )
 
     def _graceful_stop_reactor(self):
