@@ -12,11 +12,13 @@ def _get_boto_connection():
 
     class _v19_S3Connection(S3Connection):
         """A dummy S3Connection wrapper that doesn't do any synchronous download"""
+
         def _mexe(self, method, bucket, key, headers, *args, **kwargs):
             return headers
 
     class _v20_S3Connection(S3Connection):
         """A dummy S3Connection wrapper that doesn't do any synchronous download"""
+
         def _mexe(self, http_request, *args, **kwargs):
             http_request.authorize(connection=self)
             return http_request.headers
@@ -52,8 +54,7 @@ class S3DownloadHandler:
 
         self._signer = None
         if is_botocore():
-            import botocore.auth
-            import botocore.credentials
+            import botocore
             kw.pop('anon', None)
             if kw:
                 raise TypeError('Unexpected keyword arguments: %s' % kw)
@@ -64,8 +65,7 @@ class S3DownloadHandler:
         else:
             _S3Connection = _get_boto_connection()
             try:
-                self.conn = _S3Connection(
-                    aws_access_key_id, aws_secret_access_key, **kw)
+                self.conn = _S3Connection(aws_access_key_id, aws_secret_access_key, **kw)
             except Exception as ex:
                 raise NotConfigured(str(ex))
 
@@ -89,22 +89,21 @@ class S3DownloadHandler:
         if self.anon:
             request = request.replace(url=url)
         elif self._signer is not None:
-            import botocore.awsrequest
+            import botocore
             awsrequest = botocore.awsrequest.AWSRequest(
                 method=request.method,
                 url='%s://s3.amazonaws.com/%s%s' % (scheme, bucket, path),
                 headers=request.headers.to_unicode_dict(),
                 data=request.body)
             self._signer.add_auth(awsrequest)
-            request = request.replace(
-                url=url, headers=awsrequest.headers.items())
+            request = request.replace(url=url, headers=awsrequest.headers.items())
         else:
             signed_headers = self.conn.make_request(
-                    method=request.method,
-                    bucket=bucket,
-                    key=unquote(p.path),
-                    query_args=unquote(p.query),
-                    headers=request.headers,
-                    data=request.body)
+                method=request.method,
+                bucket=bucket,
+                key=unquote(p.path),
+                query_args=unquote(p.query),
+                headers=request.headers,
+                data=request.body)
             request = request.replace(url=url, headers=signed_headers)
         return self._download_http(request, spider)
