@@ -1,10 +1,19 @@
 from OpenSSL import SSL
-from twisted.internet.ssl import optionsForClientTLS, CertificateOptions, platformTrust, AcceptableCiphers
+from twisted.internet.ssl import AcceptableCiphers, CertificateOptions, TLSVersion, optionsForClientTLS, platformTrust
 from twisted.web.client import BrowserLikePolicyForHTTPS
 from twisted.web.iweb import IPolicyForHTTPS
 from zope.interface.declarations import implementer
 
 from scrapy.core.downloader.tls import ScrapyClientTLSOptions, DEFAULT_CIPHERS
+
+
+_min_ssl_versions = {
+    SSL.SSLv23_METHOD: TLSVersion.SSLv3,
+    SSL.SSLv3_METHOD: TLSVersion.SSLv3,
+    SSL.TLSv1_METHOD: TLSVersion.TLSv1_0,
+    SSL.TLSv1_1_METHOD: TLSVersion.TLSv1_1,
+    SSL.TLSv1_2_METHOD: TLSVersion.TLSv1_2,
+}
 
 
 @implementer(IPolicyForHTTPS)
@@ -29,7 +38,7 @@ class ScrapyClientContextFactory(BrowserLikePolicyForHTTPS):
             self.tls_ciphers = DEFAULT_CIPHERS
 
     @classmethod
-    def from_settings(cls, settings, method=SSL.SSLv23_METHOD, *args, **kwargs):
+    def from_settings(cls, settings, method=TLSVersion.SSLv3, *args, **kwargs):
         tls_verbose_logging = settings.getbool('DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING')
         tls_ciphers = settings['DOWNLOADER_CLIENT_TLS_CIPHERS']
         return cls(method=method, tls_verbose_logging=tls_verbose_logging, tls_ciphers=tls_ciphers, *args, **kwargs)
@@ -46,9 +55,12 @@ class ScrapyClientContextFactory(BrowserLikePolicyForHTTPS):
         #
         # * getattr() for `_ssl_method` attribute for context factories
         #   not calling super().__init__
+        method = getattr(self, 'method', getattr(self, '_ssl_method', None))
+        if method not in _min_ssl_versions.values():
+            method = _min_ssl_versions.get(method)
         return CertificateOptions(
             verify=False,
-            method=getattr(self, 'method', getattr(self, '_ssl_method', None)),
+            raiseMinimumTo=method,
             fixBrokenPeers=True,
             acceptableCiphers=self.tls_ciphers,
         )
@@ -59,8 +71,11 @@ class ScrapyClientContextFactory(BrowserLikePolicyForHTTPS):
         return self.getCertificateOptions().getContext()
 
     def creatorForNetloc(self, hostname, port):
-        return ScrapyClientTLSOptions(hostname.decode("ascii"), self.getContext(),
-                                      verbose_logging=self.tls_verbose_logging)
+        return ScrapyClientTLSOptions(
+            hostname=hostname.decode("ascii"),
+            ctx=self.getContext(),
+            verbose_logging=self.tls_verbose_logging,
+        )
 
 
 @implementer(IPolicyForHTTPS)
@@ -87,8 +102,11 @@ class BrowserLikeContextFactory(ScrapyClientContextFactory):
         #
         # This means that a website like https://www.cacert.org will be rejected
         # by default, since CAcert.org CA certificate is seldom shipped.
+        method = self._ssl_method
+        if method not in _min_ssl_versions.values():
+            method = _min_ssl_versions.get(method)
         return optionsForClientTLS(
             hostname=hostname.decode("ascii"),
             trustRoot=platformTrust(),
-            extraCertificateOptions={'method': self._ssl_method},
+            extraCertificateOptions={"raiseMinimumTo": method},
         )
