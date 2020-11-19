@@ -379,6 +379,25 @@ class ScrapyAgent:
         return result
 
     def _cb_bodyready(self, txresponse, request):
+        headers_received_result = self._crawler.signals.send_catch_log(
+            signal=signals.headers_received,
+            headers=Headers(txresponse.headers.getAllRawHeaders()),
+            request=request,
+            spider=self._crawler.spider,
+        )
+        for handler, result in headers_received_result:
+            if isinstance(result, Failure) and isinstance(result.value, StopDownload):
+                logger.debug("Download stopped for %(request)s from signal handler %(handler)s",
+                             {"request": request, "handler": handler.__qualname__})
+                return {
+                    "txresponse": txresponse,
+                    "body": b"",
+                    "flags": ["download_stopped"],
+                    "certificate": None,
+                    "ip_address": None,
+                    "failure": result if result.value.fail else None,
+                }
+
         # deliverBody hangs for responses without body
         if txresponse.length == 0:
             return {
