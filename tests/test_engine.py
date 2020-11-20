@@ -491,6 +491,7 @@ class HeadersReceivedStopDownloadEngineTest(EngineTest):
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/numbers> "
                                    "from signal handler"
                                    " HeadersReceivedStopDownloadCrawlerRun.headers_received"))
+            self._assert_bytes_received()
             self._assert_visited_urls()
             self._assert_downloaded_responses(count=6)
             self._assert_signals_caught()
