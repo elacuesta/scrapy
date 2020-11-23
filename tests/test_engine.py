@@ -261,6 +261,7 @@ class EngineTest(unittest.TestCase):
             self._assert_scraped_items()
             self._assert_signals_caught()
             self._assert_bytes_received()
+            self._assert_headers_received()
 
     @defer.inlineCallbacks
     def test_crawler_dupefilter(self):
@@ -454,6 +455,7 @@ class BytesReceivedStopDownloadEngineTest(EngineTest):
             self._assert_downloaded_responses()
             self._assert_signals_caught()
             self._assert_bytes_received()
+            self._assert_headers_received()
 
     def _assert_bytes_received(self):
         self.assertEqual(9, len(self.run.bytes))
@@ -491,10 +493,10 @@ class HeadersReceivedStopDownloadEngineTest(EngineTest):
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/numbers> "
                                    "from signal handler"
                                    " HeadersReceivedStopDownloadCrawlerRun.headers_received"))
-            self._assert_bytes_received()
             self._assert_visited_urls()
             self._assert_downloaded_responses(count=6)
             self._assert_signals_caught()
+            self._assert_bytes_received()
             self._assert_headers_received()
 
     def _assert_bytes_received(self):
