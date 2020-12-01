@@ -245,37 +245,7 @@ class HeadersReceivedStopDownloadCrawlerRun(CrawlerRun):
         raise StopDownload(fail=False)
 
 
-class EngineTest(unittest.TestCase):
-
-    @defer.inlineCallbacks
-    def test_crawler(self):
-
-        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
-            if spider is None:
-                continue
-            self.run = CrawlerRun(spider)
-            yield self.run.run()
-            self._assert_visited_urls()
-            self._assert_scheduled_requests(urls_to_visit=9)
-            self._assert_downloaded_responses()
-            self._assert_scraped_items()
-            self._assert_signals_caught()
-            self._assert_bytes_received()
-            self._assert_headers_received()
-
-    @defer.inlineCallbacks
-    def test_crawler_dupefilter(self):
-        self.run = CrawlerRun(TestDupeFilterSpider)
-        yield self.run.run()
-        self._assert_scheduled_requests(urls_to_visit=8)
-        self._assert_dropped_requests()
-
-    @defer.inlineCallbacks
-    def test_crawler_itemerror(self):
-        self.run = CrawlerRun(ItemZeroDivisionErrorSpider)
-        yield self.run.run()
-        self._assert_items_error()
-
+class EngineTestMixin:
     def _assert_visited_urls(self):
         must_be_visited = ["/", "/redirect", "/redirected",
                            "/item1.html", "/item2.html", "/item999.html"]
@@ -403,6 +373,37 @@ class EngineTest(unittest.TestCase):
         self.assertEqual({'spider': self.run.spider, 'reason': 'finished'},
                          self.run.signals_caught[signals.spider_closed])
 
+
+class EngineTest(EngineTestMixin, unittest.TestCase):
+
+    @defer.inlineCallbacks
+    def test_crawler(self):
+        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
+            if spider is None:
+                continue
+            self.run = CrawlerRun(spider)
+            yield self.run.run()
+            self._assert_visited_urls()
+            self._assert_scheduled_requests(urls_to_visit=9)
+            self._assert_downloaded_responses()
+            self._assert_scraped_items()
+            self._assert_signals_caught()
+            self._assert_bytes_received()
+            self._assert_headers_received()
+
+    @defer.inlineCallbacks
+    def test_crawler_dupefilter(self):
+        self.run = CrawlerRun(TestDupeFilterSpider)
+        yield self.run.run()
+        self._assert_scheduled_requests(urls_to_visit=8)
+        self._assert_dropped_requests()
+
+    @defer.inlineCallbacks
+    def test_crawler_itemerror(self):
+        self.run = CrawlerRun(ItemZeroDivisionErrorSpider)
+        yield self.run.run()
+        self._assert_items_error()
+
     @defer.inlineCallbacks
     def test_close_downloader(self):
         e = ExecutionEngine(get_crawler(TestSpider), lambda _: None)
@@ -427,7 +428,7 @@ class EngineTest(unittest.TestCase):
         self.assertEqual(len(e.open_spiders), 0)
 
 
-class BytesReceivedStopDownloadEngineTest(EngineTest):
+class BytesReceivedStopDownloadEngineTest(EngineTestMixin, unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_crawler(self):
@@ -470,7 +471,7 @@ class BytesReceivedStopDownloadEngineTest(EngineTest):
                 self.assertTrue(len(joined_data) < len(b"".join(numbers)))
 
 
-class HeadersReceivedStopDownloadEngineTest(EngineTest):
+class HeadersReceivedStopDownloadEngineTest(EngineTestMixin, unittest.TestCase):
 
     @defer.inlineCallbacks
     def test_crawler(self):
