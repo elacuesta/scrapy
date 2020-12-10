@@ -17,5 +17,5 @@ uvloop; platform_system != "Windows"
 bpython
 brotlipy  # optional for HTTP compress downloader middleware tests
 zstandard  # optional for HTTP compress downloader middleware tests
-ipython
+ipython >= 1.0.0
 pywin32; sys_platform == "win32"
