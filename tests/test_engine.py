@@ -37,11 +37,6 @@ from scrapy.utils.test import get_crawler
 from tests import get_testdata, tests_datadir
 
 
-# FIXME: remove
-from twisted.internet.base import DelayedCall
-DelayedCall.debug = True
-
-
 class TestItem(Item):
     name = Field()
     url = Field()
@@ -190,6 +185,7 @@ class CrawlerRun:
             if not name.startswith('_'):
                 disconnect_all(signal)
         self.deferred.callback(None)
+        return self.crawler.stop()
 
     def geturl(self, path):
         return f"http://localhost:{self.portno}{path}"
