@@ -37,6 +37,11 @@ from scrapy.utils.test import get_crawler
 from tests import get_testdata, tests_datadir
 
 
+# FIXME: debug
+from twisted.internet.base import DelayedCall
+DelayedCall.debug = True
+
+
 class TestItem(Item):
     name = Field()
     url = Field()
