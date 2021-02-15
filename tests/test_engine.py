@@ -37,11 +37,6 @@ from scrapy.utils.test import get_crawler
 from tests import get_testdata, tests_datadir
 
 
-# FIXME: debug
-from twisted.internet.base import DelayedCall
-DelayedCall.debug = True
-
-
 class TestItem(Item):
     name = Field()
     url = Field()
@@ -190,7 +185,6 @@ class CrawlerRun:
             if not name.startswith('_'):
                 disconnect_all(signal)
         self.deferred.callback(None)
-        return self.crawler.stop()
 
     def geturl(self, path):
         return f"http://localhost:{self.portno}{path}"
@@ -231,7 +225,7 @@ class CrawlerRun:
         self.signals_caught[sig] = signalargs
 
 
-class BytesReceivedStopDownloadCrawlerRun(CrawlerRun):
+class BytesReceivedCrawlerRun(CrawlerRun):
     """
     Make sure raising the StopDownload exception stops the download of the response body
     """
@@ -241,17 +235,45 @@ class BytesReceivedStopDownloadCrawlerRun(CrawlerRun):
         raise StopDownload(fail=False)
 
 
-class HeadersReceivedStopDownloadCrawlerRun(CrawlerRun):
+class HeadersReceivedCrawlerRun(CrawlerRun):
     """
     Make sure raising the StopDownload exception stops the download of the response body
     """
 
-    def headers_received(self, headers, request, spider):
-        super().headers_received(headers, request, spider)
+    def bytes_received(self, data, request, spider):
+        super().bytes_received(data, request, spider)
         raise StopDownload(fail=False)
 
 
-class EngineTestMixin:
+class EngineTest(unittest.TestCase):
+    @defer.inlineCallbacks
+    def test_crawler(self):
+
+        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
+            if spider is None:
+                continue
+            self.run = CrawlerRun(spider)
+            yield self.run.run()
+            self._assert_visited_urls()
+            self._assert_scheduled_requests(urls_to_visit=9)
+            self._assert_downloaded_responses(count=9)
+            self._assert_scraped_items()
+            self._assert_signals_caught()
+            self._assert_bytes_received()
+
+    @defer.inlineCallbacks
+    def test_crawler_dupefilter(self):
+        self.run = CrawlerRun(TestDupeFilterSpider)
+        yield self.run.run()
+        self._assert_scheduled_requests(urls_to_visit=8)
+        self._assert_dropped_requests()
+
+    @defer.inlineCallbacks
+    def test_crawler_itemerror(self):
+        self.run = CrawlerRun(ItemZeroDivisionErrorSpider)
+        yield self.run.run()
+        self._assert_items_error()
+
     def _assert_visited_urls(self):
         must_be_visited = ["/", "/redirect", "/redirected",
                            "/item1.html", "/item2.html", "/item999.html"]
@@ -278,7 +300,7 @@ class EngineTestMixin:
     def _assert_dropped_requests(self):
         self.assertEqual(len(self.run.reqdropped), 1)
 
-    def _assert_downloaded_responses(self, count=9):
+    def _assert_downloaded_responses(self, count):
         # response tests
         self.assertEqual(count, len(self.run.respplug))
         self.assertEqual(count, len(self.run.reqreached))
@@ -314,6 +336,14 @@ class EngineTestMixin:
             if 'item2.html' in item['url']:
                 self.assertEqual('Item 2 name', item['name'])
                 self.assertEqual('200', item['price'])
+
+
+    def _assert_headers_received(self):
+        for headers in self.run.headers.values():
+            self.assertIn(b"Server", headers)
+            self.assertIn(b"TwistedWeb", headers[b"Server"])
+            self.assertIn(b"Date", headers)
+            self.assertIn(b"Content-Type", headers)
 
     def _assert_bytes_received(self):
         self.assertEqual(9, len(self.run.bytes))
@@ -357,13 +387,6 @@ class EngineTestMixin:
                 numbers = [str(x).encode("utf8") for x in range(2**18)]
                 self.assertEqual(joined_data, b"".join(numbers))
 
-    def _assert_headers_received(self):
-        for headers in self.run.headers.values():
-            self.assertIn(b"Server", headers)
-            self.assertIn(b"TwistedWeb", headers[b"Server"])
-            self.assertIn(b"Date", headers)
-            self.assertIn(b"Content-Type", headers)
-
     def _assert_signals_caught(self):
         assert signals.engine_started in self.run.signals_caught
         assert signals.engine_stopped in self.run.signals_caught
@@ -378,37 +401,6 @@ class EngineTestMixin:
                          self.run.signals_caught[signals.spider_idle])
         self.assertEqual({'spider': self.run.spider, 'reason': 'finished'},
                          self.run.signals_caught[signals.spider_closed])
-
-
-class EngineTest(EngineTestMixin, unittest.TestCase):
-
-    @defer.inlineCallbacks
-    def test_crawler(self):
-        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
-            if spider is None:
-                continue
-            self.run = CrawlerRun(spider)
-            yield self.run.run()
-            self._assert_visited_urls()
-            self._assert_scheduled_requests(urls_to_visit=9)
-            self._assert_downloaded_responses()
-            self._assert_scraped_items()
-            self._assert_signals_caught()
-            self._assert_bytes_received()
-            self._assert_headers_received()
-
-    @defer.inlineCallbacks
-    def test_crawler_dupefilter(self):
-        self.run = CrawlerRun(TestDupeFilterSpider)
-        yield self.run.run()
-        self._assert_scheduled_requests(urls_to_visit=8)
-        self._assert_dropped_requests()
-
-    @defer.inlineCallbacks
-    def test_crawler_itemerror(self):
-        self.run = CrawlerRun(ItemZeroDivisionErrorSpider)
-        yield self.run.run()
-        self._assert_items_error()
 
     @defer.inlineCallbacks
     def test_close_downloader(self):
@@ -434,35 +426,31 @@ class EngineTest(EngineTestMixin, unittest.TestCase):
         self.assertEqual(len(e.open_spiders), 0)
 
 
-class BytesReceivedStopDownloadEngineTest(EngineTestMixin, unittest.TestCase):
-
+class BytesReceivedEngineTest(EngineTest):
     @defer.inlineCallbacks
     def test_crawler(self):
         for spider in TestSpider, DictItemsSpider:
-            self.run = BytesReceivedStopDownloadCrawlerRun(spider)
+            self.run = BytesReceivedCrawlerRun(spider)
             with LogCapture() as log:
                 yield self.run.run()
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/redirected> "
-                                   "from signal handler"
-                                   " BytesReceivedStopDownloadCrawlerRun.bytes_received"))
+                                   "from signal handler BytesReceivedCrawlerRun.bytes_received"))
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/> "
-                                   "from signal handler"
-                                   " BytesReceivedStopDownloadCrawlerRun.bytes_received"))
+                                   "from signal handler BytesReceivedCrawlerRun.bytes_received"))
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/numbers> "
-                                   "from signal handler"
-                                   " BytesReceivedStopDownloadCrawlerRun.bytes_received"))
+                                   "from signal handler BytesReceivedCrawlerRun.bytes_received"))
             self._assert_visited_urls()
             self._assert_scheduled_requests(urls_to_visit=9)
-            self._assert_downloaded_responses()
+            self._assert_downloaded_responses(count=9)
             self._assert_signals_caught()
-            self._assert_bytes_received()
             self._assert_headers_received()
+            self._assert_bytes_received()
 
     def _assert_bytes_received(self):
         self.assertEqual(9, len(self.run.bytes))
@@ -477,43 +465,25 @@ class BytesReceivedStopDownloadEngineTest(EngineTestMixin, unittest.TestCase):
                 self.assertTrue(len(joined_data) < len(b"".join(numbers)))
 
 
-class HeadersReceivedStopDownloadEngineTest(EngineTestMixin, unittest.TestCase):
-
+class HeadersReceivedEngineTest(EngineTest):
     @defer.inlineCallbacks
     def test_crawler(self):
         for spider in TestSpider, DictItemsSpider:
-            self.run = HeadersReceivedStopDownloadCrawlerRun(spider)
+            self.run = HeadersReceivedCrawlerRun(spider)
             with LogCapture() as log:
                 yield self.run.run()
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/redirected> "
-                                   "from signal handler"
-                                   " HeadersReceivedStopDownloadCrawlerRun.headers_received"))
+                                   "from signal handler HeadersReceivedCrawlerRun.bytes_received"))
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/> "
-                                   "from signal handler"
-                                   " HeadersReceivedStopDownloadCrawlerRun.headers_received"))
+                                   "from signal handler HeadersReceivedCrawlerRun.bytes_received"))
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/numbers> "
-                                   "from signal handler"
-                                   " HeadersReceivedStopDownloadCrawlerRun.headers_received"))
-    #         self._assert_visited_urls()
-    #         self._assert_downloaded_responses(count=6)
-    #         self._assert_signals_caught()
-    #         self._assert_bytes_received()
-    #         self._assert_headers_received()
-
-    # def _assert_bytes_received(self):
-    #     self.assertEqual(0, len(self.run.bytes))
-
-    # def _assert_visited_urls(self):
-    #     must_be_visited = ["/", "/redirect", "/redirected"]
-    #     urls_visited = {rp[0].url for rp in self.run.respplug}
-    #     urls_expected = {self.run.geturl(p) for p in must_be_visited}
-    #     assert urls_expected <= urls_visited, f"URLs not visited: {list(urls_expected - urls_visited)}"
+                                   "from signal handler HeadersReceivedCrawlerRun.bytes_received"))
 
 
 if __name__ == "__main__":
