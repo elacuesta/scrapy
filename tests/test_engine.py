@@ -229,7 +229,6 @@ class BytesReceivedCrawlerRun(CrawlerRun):
     """
     Make sure raising the StopDownload exception stops the download of the response body
     """
-
     def bytes_received(self, data, request, spider):
         super().bytes_received(data, request, spider)
         raise StopDownload(fail=False)
@@ -239,9 +238,8 @@ class HeadersReceivedCrawlerRun(CrawlerRun):
     """
     Make sure raising the StopDownload exception stops the download of the response body
     """
-
-    def bytes_received(self, data, request, spider):
-        super().bytes_received(data, request, spider)
+    def headers_received(self, headers, request, spider):
+        super().headers_received(headers, request, spider)
         raise StopDownload(fail=False)
 
 
@@ -428,7 +426,9 @@ class EngineTest(unittest.TestCase):
 class BytesReceivedEngineTest(EngineTest):
     @defer.inlineCallbacks
     def test_crawler(self):
-        for spider in TestSpider, DictItemsSpider:
+        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
+            if spider is None:
+                continue
             self.run = BytesReceivedCrawlerRun(spider)
             with LogCapture() as log:
                 yield self.run.run()
@@ -467,22 +467,24 @@ class BytesReceivedEngineTest(EngineTest):
 class HeadersReceivedEngineTest(EngineTest):
     @defer.inlineCallbacks
     def test_crawler(self):
-        for spider in TestSpider, DictItemsSpider:
+        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
+            if spider is None:
+                continue
             self.run = HeadersReceivedCrawlerRun(spider)
             with LogCapture() as log:
                 yield self.run.run()
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/redirected> "
-                                   "from signal handler HeadersReceivedCrawlerRun.bytes_received"))
+                                   "from signal handler HeadersReceivedCrawlerRun.headers_received"))
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/> "
-                                   "from signal handler HeadersReceivedCrawlerRun.bytes_received"))
+                                   "from signal handler HeadersReceivedCrawlerRun.headers_received"))
                 log.check_present(("scrapy.core.downloader.handlers.http11",
                                    "DEBUG",
                                    f"Download stopped for <GET http://localhost:{self.run.portno}/numbers> "
-                                   "from signal handler HeadersReceivedCrawlerRun.bytes_received"))
+                                   "from signal handler HeadersReceivedCrawlerRun.headers_received"))
 
 
 if __name__ == "__main__":
