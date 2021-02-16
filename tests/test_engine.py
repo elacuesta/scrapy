@@ -19,14 +19,12 @@ from urllib.parse import urlparse
 import attr
 from itemadapter import ItemAdapter
 from pydispatch import dispatcher
-from testfixtures import LogCapture
 from twisted.internet import defer, reactor
 from twisted.trial import unittest
 from twisted.web import server, static, util
 
 from scrapy import signals
 from scrapy.core.engine import ExecutionEngine
-from scrapy.exceptions import StopDownload
 from scrapy.http import Request
 from scrapy.item import Item, Field
 from scrapy.linkextractors import LinkExtractor
@@ -185,6 +183,7 @@ class CrawlerRun:
             if not name.startswith('_'):
                 disconnect_all(signal)
         self.deferred.callback(None)
+        return self.crawler.stop()
 
     def geturl(self, path):
         return f"http://localhost:{self.portno}{path}"
@@ -225,24 +224,6 @@ class CrawlerRun:
         self.signals_caught[sig] = signalargs
 
 
-class BytesReceivedCrawlerRun(CrawlerRun):
-    """
-    Make sure raising the StopDownload exception stops the download of the response body
-    """
-    def bytes_received(self, data, request, spider):
-        super().bytes_received(data, request, spider)
-        raise StopDownload(fail=False)
-
-
-class HeadersReceivedCrawlerRun(CrawlerRun):
-    """
-    Make sure raising the StopDownload exception stops the download of the response body
-    """
-    def headers_received(self, headers, request, spider):
-        super().headers_received(headers, request, spider)
-        raise StopDownload(fail=False)
-
-
 class EngineTest(unittest.TestCase):
     @defer.inlineCallbacks
     def test_crawler(self):
@@ -253,7 +234,7 @@ class EngineTest(unittest.TestCase):
             self.run = CrawlerRun(spider)
             yield self.run.run()
             self._assert_visited_urls()
-            self._assert_scheduled_requests(urls_to_visit=9)
+            self._assert_scheduled_requests(count=9)
             self._assert_downloaded_responses(count=9)
             self._assert_scraped_items()
             self._assert_signals_caught()
@@ -263,7 +244,7 @@ class EngineTest(unittest.TestCase):
     def test_crawler_dupefilter(self):
         self.run = CrawlerRun(TestDupeFilterSpider)
         yield self.run.run()
-        self._assert_scheduled_requests(urls_to_visit=8)
+        self._assert_scheduled_requests(count=8)
         self._assert_dropped_requests()
 
     @defer.inlineCallbacks
@@ -279,8 +260,8 @@ class EngineTest(unittest.TestCase):
         urls_expected = {self.run.geturl(p) for p in must_be_visited}
         assert urls_expected <= urls_visited, f"URLs not visited: {list(urls_expected - urls_visited)}"
 
-    def _assert_scheduled_requests(self, urls_to_visit=None):
-        self.assertEqual(urls_to_visit, len(self.run.reqplug))
+    def _assert_scheduled_requests(self, count=None):
+        self.assertEqual(count, len(self.run.reqplug))
 
         paths_expected = ['/item999.html', '/item2.html', '/item1.html']
 
@@ -421,70 +402,6 @@ class EngineTest(unittest.TestCase):
         yield e.close()
         self.assertFalse(e.running)
         self.assertEqual(len(e.open_spiders), 0)
-
-
-class BytesReceivedEngineTest(EngineTest):
-    @defer.inlineCallbacks
-    def test_crawler(self):
-        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
-            if spider is None:
-                continue
-            self.run = BytesReceivedCrawlerRun(spider)
-            with LogCapture() as log:
-                yield self.run.run()
-                log.check_present(("scrapy.core.downloader.handlers.http11",
-                                   "DEBUG",
-                                   f"Download stopped for <GET http://localhost:{self.run.portno}/redirected> "
-                                   "from signal handler BytesReceivedCrawlerRun.bytes_received"))
-                log.check_present(("scrapy.core.downloader.handlers.http11",
-                                   "DEBUG",
-                                   f"Download stopped for <GET http://localhost:{self.run.portno}/> "
-                                   "from signal handler BytesReceivedCrawlerRun.bytes_received"))
-                log.check_present(("scrapy.core.downloader.handlers.http11",
-                                   "DEBUG",
-                                   f"Download stopped for <GET http://localhost:{self.run.portno}/numbers> "
-                                   "from signal handler BytesReceivedCrawlerRun.bytes_received"))
-            self._assert_visited_urls()
-            self._assert_scheduled_requests(urls_to_visit=9)
-            self._assert_downloaded_responses(count=9)
-            self._assert_signals_caught()
-            self._assert_headers_received()
-            self._assert_bytes_received()
-
-    def _assert_bytes_received(self):
-        self.assertEqual(9, len(self.run.bytes))
-        for request, data in self.run.bytes.items():
-            joined_data = b"".join(data)
-            self.assertTrue(len(data) == 1)  # signal was fired only once
-            if self.run.getpath(request.url) == "/numbers":
-                # Received bytes are not the complete response. The exact amount depends
-                # on the buffer size, which can vary, so we only check that the amount
-                # of received bytes is strictly less than the full response.
-                numbers = [str(x).encode("utf8") for x in range(2**18)]
-                self.assertTrue(len(joined_data) < len(b"".join(numbers)))
-
-
-class HeadersReceivedEngineTest(EngineTest):
-    @defer.inlineCallbacks
-    def test_crawler(self):
-        for spider in (TestSpider, DictItemsSpider, AttrsItemsSpider, DataClassItemsSpider):
-            if spider is None:
-                continue
-            self.run = HeadersReceivedCrawlerRun(spider)
-            with LogCapture() as log:
-                yield self.run.run()
-                log.check_present(("scrapy.core.downloader.handlers.http11",
-                                   "DEBUG",
-                                   f"Download stopped for <GET http://localhost:{self.run.portno}/redirected> "
-                                   "from signal handler HeadersReceivedCrawlerRun.headers_received"))
-                log.check_present(("scrapy.core.downloader.handlers.http11",
-                                   "DEBUG",
-                                   f"Download stopped for <GET http://localhost:{self.run.portno}/> "
-                                   "from signal handler HeadersReceivedCrawlerRun.headers_received"))
-                log.check_present(("scrapy.core.downloader.handlers.http11",
-                                   "DEBUG",
-                                   f"Download stopped for <GET http://localhost:{self.run.portno}/numbers> "
-                                   "from signal handler HeadersReceivedCrawlerRun.headers_received"))
 
 
 if __name__ == "__main__":
