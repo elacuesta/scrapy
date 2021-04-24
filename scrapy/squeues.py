@@ -59,7 +59,7 @@ class _BaseMemoryQueue:
             raise NotImplementedError("The underlying queue class does not implement 'peek'") from ex
 
 
-class _BaseDiskQueue:
+class _BaseDiskRequestQueue:
     """
     Base queue for requests that stores elements to disk and converts requests to/from dictionaries
     """
@@ -80,10 +80,7 @@ class _BaseDiskQueue:
         return request_from_dict(request, self.spider) if request else None
 
     def peek(self):
-        try:
-            request = super().peek()
-        except AttributeError as ex:
-            raise NotImplementedError("The underlying queue class does not implement 'peek'") from ex
+        request = super().peek()  # NotImplementedError could be raised from the underlying queue
         return request_from_dict(request, self.spider) if request else None
 
 
@@ -121,10 +118,10 @@ _SerializationMarshalLifoDiskQueue = _serializable_queue(
 # usable queue classes
 FifoMemoryQueue = type("FifoMemoryQueue", (_BaseMemoryQueue, queue.FifoMemoryQueue), {})
 LifoMemoryQueue = type("LifoMemoryQueue", (_BaseMemoryQueue, queue.LifoMemoryQueue), {})
-PickleFifoDiskQueue = type("PickleFifoDiskQueue", (_BaseDiskQueue, _SerializationPickleFifoDiskQueue), {})
-PickleLifoDiskQueue = type("PickleLifoDiskQueue", (_BaseDiskQueue, _SerializationPickleLifoDiskQueue), {})
-MarshalFifoDiskQueue = type("MarshalFifoDiskQueue", (_BaseDiskQueue, _SerializationMarshalFifoDiskQueue), {})
-MarshalLifoDiskQueue = type("MarshalLifoDiskQueue", (_BaseDiskQueue, _SerializationMarshalLifoDiskQueue), {})
+PickleFifoDiskQueue = type("PickleFifoDiskQueue", (_BaseDiskRequestQueue, _SerializationPickleFifoDiskQueue), {})
+PickleLifoDiskQueue = type("PickleLifoDiskQueue", (_BaseDiskRequestQueue, _SerializationPickleLifoDiskQueue), {})
+MarshalFifoDiskQueue = type("MarshalFifoDiskQueue", (_BaseDiskRequestQueue, _SerializationMarshalFifoDiskQueue), {})
+MarshalLifoDiskQueue = type("MarshalLifoDiskQueue", (_BaseDiskRequestQueue, _SerializationMarshalLifoDiskQueue), {})
 
 
 # deprecated classes
