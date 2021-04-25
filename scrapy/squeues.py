@@ -24,27 +24,27 @@ def _with_mkdir(queue_class):
     return DirectoriesCreated
 
 
-def _serialization_queue(queue_class, serialize, deserialize):
+class _SerializationQueue:
+    """
+    Base general purpose queue that serializes/deserializes objects.
+    Subclasses should define static "serialize" and "deserialize" methods.
+    """
+    def push(self, obj):
+        super().push(self.serialize(obj))
 
-    class SerializationQueue(queue_class):
-        def push(self, obj):
-            super().push(serialize(obj))
+    def pop(self):
+        s = super().pop()
+        return self.deserialize(s) if s else None
 
-        def pop(self):
-            s = super().pop()
-            return deserialize(s) if s else None
-
-        def peek(self):
-            try:
-                s = super().peek()
-            except AttributeError as ex:
-                raise NotImplementedError("The underlying queue class does not implement 'peek'") from ex
-            return deserialize(s) if s else None
-
-    return SerializationQueue
+    def peek(self):
+        try:
+            s = super().peek()
+        except AttributeError as ex:
+            raise NotImplementedError("The underlying queue class does not implement 'peek'") from ex
+        return self.deserialize(s) if s else None
 
 
-class _BaseMemoryQueue:
+class _MemoryQueue:
     """
     Base general-purpose queue that stores elements in memory
     """
@@ -59,7 +59,7 @@ class _BaseMemoryQueue:
             raise NotImplementedError("The underlying queue class does not implement 'peek'") from ex
 
 
-class _BaseDiskRequestQueue:
+class _DiskRequestQueue:
     """
     Base queue for requests that stores elements to disk and converts requests to/from dictionaries
     """
@@ -93,35 +93,33 @@ def _pickle_serialize(obj):
         raise ValueError(str(e)) from e
 
 
-_PickleFifoSerializationDiskQueue = _serialization_queue(
-    queue_class=_with_mkdir(queue.FifoDiskQueue),
-    serialize=_pickle_serialize,
-    deserialize=pickle.loads,
-)
-_PickleLifoSerializationDiskQueue = _serialization_queue(
-    queue_class=_with_mkdir(queue.LifoDiskQueue),
-    serialize=_pickle_serialize,
-    deserialize=pickle.loads,
-)
-_MarshalFifoSerializationDiskQueue = _serialization_queue(
-    queue_class=_with_mkdir(queue.FifoDiskQueue),
-    serialize=marshal.dumps,
-    deserialize=marshal.loads,
-)
-_MarshalLifoSerializationDiskQueue = _serialization_queue(
-    queue_class=_with_mkdir(queue.LifoDiskQueue),
-    serialize=marshal.dumps,
-    deserialize=marshal.loads,
-)
+class _PickleFifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.FifoDiskQueue)):  # type: ignore[misc]
+    serialize = staticmethod(_pickle_serialize)
+    deserialize = staticmethod(pickle.loads)
 
 
-# usable queue classes
-FifoMemoryQueue = type("FifoMemoryQueue", (_BaseMemoryQueue, queue.FifoMemoryQueue), {})
-LifoMemoryQueue = type("LifoMemoryQueue", (_BaseMemoryQueue, queue.LifoMemoryQueue), {})
-PickleFifoDiskQueue = type("PickleFifoDiskQueue", (_BaseDiskRequestQueue, _PickleFifoSerializationDiskQueue), {})
-PickleLifoDiskQueue = type("PickleLifoDiskQueue", (_BaseDiskRequestQueue, _PickleLifoSerializationDiskQueue), {})
-MarshalFifoDiskQueue = type("MarshalFifoDiskQueue", (_BaseDiskRequestQueue, _MarshalFifoSerializationDiskQueue), {})
-MarshalLifoDiskQueue = type("MarshalLifoDiskQueue", (_BaseDiskRequestQueue, _MarshalLifoSerializationDiskQueue), {})
+class _PickleLifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.LifoDiskQueue)):  # type: ignore[misc]
+    serialize = staticmethod(_pickle_serialize)
+    deserialize = staticmethod(pickle.loads)
+
+
+class _MarshalFifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.FifoDiskQueue)):  # type: ignore[misc]
+    serialize = staticmethod(marshal.dumps)
+    deserialize = staticmethod(marshal.loads)
+
+
+class _MarshalLifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.LifoDiskQueue)):  # type: ignore[misc]
+    serialize = staticmethod(marshal.dumps)
+    deserialize = staticmethod(marshal.loads)
+
+
+# public queue classes
+FifoMemoryQueue = type("FifoMemoryQueue", (_MemoryQueue, queue.FifoMemoryQueue), {})
+LifoMemoryQueue = type("LifoMemoryQueue", (_MemoryQueue, queue.LifoMemoryQueue), {})
+PickleFifoDiskQueue = type("PickleFifoDiskQueue", (_DiskRequestQueue, _PickleFifoSerializationDiskQueue), {})
+PickleLifoDiskQueue = type("PickleLifoDiskQueue", (_DiskRequestQueue, _PickleLifoSerializationDiskQueue), {})
+MarshalFifoDiskQueue = type("MarshalFifoDiskQueue", (_DiskRequestQueue, _MarshalFifoSerializationDiskQueue), {})
+MarshalLifoDiskQueue = type("MarshalLifoDiskQueue", (_DiskRequestQueue, _MarshalLifoSerializationDiskQueue), {})
 
 
 # deprecated classes
