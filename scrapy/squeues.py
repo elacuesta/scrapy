@@ -93,22 +93,22 @@ def _pickle_serialize(obj):
         raise ValueError(str(e)) from e
 
 
-class _PickleFifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.FifoDiskQueue)):  # type: ignore[misc]
+class _PickleFifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.FifoDiskQueue)):
     serialize = staticmethod(_pickle_serialize)
     deserialize = staticmethod(pickle.loads)
 
 
-class _PickleLifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.LifoDiskQueue)):  # type: ignore[misc]
+class _PickleLifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.LifoDiskQueue)):
     serialize = staticmethod(_pickle_serialize)
     deserialize = staticmethod(pickle.loads)
 
 
-class _MarshalFifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.FifoDiskQueue)):  # type: ignore[misc]
+class _MarshalFifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.FifoDiskQueue)):
     serialize = staticmethod(marshal.dumps)
     deserialize = staticmethod(marshal.loads)
 
 
-class _MarshalLifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.LifoDiskQueue)):  # type: ignore[misc]
+class _MarshalLifoSerializationDiskQueue(_SerializationQueue, _with_mkdir(queue.LifoDiskQueue)):
     serialize = staticmethod(marshal.dumps)
     deserialize = staticmethod(marshal.loads)
 
@@ -123,29 +123,29 @@ MarshalLifoDiskQueue = type("MarshalLifoDiskQueue", (_DiskRequestQueue, _Marshal
 
 
 # deprecated classes
-subclass_warn_message = "{cls} inherits from deprecated class {old}"
-instance_warn_message = "{cls} is deprecated"
+_subclass_warn_message = "{cls} inherits from deprecated class {old}"
+_instance_warn_message = "{cls} is deprecated"
 PickleFifoDiskQueueNonRequest = create_deprecated_class(
     name="PickleFifoDiskQueueNonRequest",
     new_class=_PickleFifoSerializationDiskQueue,
-    subclass_warn_message=subclass_warn_message,
-    instance_warn_message=instance_warn_message,
+    _subclass_warn_message=_subclass_warn_message,
+    _instance_warn_message=_instance_warn_message,
 )
 PickleLifoDiskQueueNonRequest = create_deprecated_class(
     name="PickleLifoDiskQueueNonRequest",
     new_class=_PickleLifoSerializationDiskQueue,
-    subclass_warn_message=subclass_warn_message,
-    instance_warn_message=instance_warn_message,
+    _subclass_warn_message=_subclass_warn_message,
+    _instance_warn_message=_instance_warn_message,
 )
 MarshalFifoDiskQueueNonRequest = create_deprecated_class(
     name="MarshalFifoDiskQueueNonRequest",
     new_class=_MarshalFifoSerializationDiskQueue,
-    subclass_warn_message=subclass_warn_message,
-    instance_warn_message=instance_warn_message,
+    _subclass_warn_message=_subclass_warn_message,
+    _instance_warn_message=_instance_warn_message,
 )
 MarshalLifoDiskQueueNonRequest = create_deprecated_class(
     name="MarshalLifoDiskQueueNonRequest",
     new_class=_MarshalLifoSerializationDiskQueue,
-    subclass_warn_message=subclass_warn_message,
-    instance_warn_message=instance_warn_message,
+    _subclass_warn_message=_subclass_warn_message,
+    _instance_warn_message=_instance_warn_message,
 )
