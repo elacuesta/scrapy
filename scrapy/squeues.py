@@ -5,6 +5,7 @@ Scheduler queues
 import marshal
 import os
 import pickle
+from typing import Any, Optional
 
 from queuelib import queue
 
@@ -25,18 +26,23 @@ def _with_mkdir(queue_class):
 
 
 class _SerializationQueue:
-    """
-    Base general purpose queue that serializes/deserializes objects.
+    """Base general purpose queue that serializes/deserializes objects.
     Subclasses should define static "serialize" and "deserialize" methods.
     """
-    def push(self, obj):
+    def push(self, obj: Any) -> None:
         super().push(self.serialize(obj))
 
-    def pop(self):
+    def pop(self) -> Optional[Any]:
         s = super().pop()
         return self.deserialize(s) if s else None
 
-    def peek(self):
+    def peek(self) -> Optional[Any]:
+        """Returns the next object to be returned by :meth:`pop`,
+        but without removing it from the queue.
+
+        Raises :exc:`NotImplementedError` if the underlying queue class does
+        not implement a ``peek`` method, which is optional for queues.
+        """
         try:
             s = super().peek()
         except AttributeError as ex:
@@ -45,14 +51,13 @@ class _SerializationQueue:
 
 
 class _MemoryQueue:
-    """
-    Base general-purpose queue that stores elements in memory
+    """Base general-purpose queue that stores elements in memory
     """
     @classmethod
     def from_crawler(cls, crawler, *args, **kwargs):
         return cls()
 
-    def peek(self):
+    def peek(self) -> Optional[Any]:
         try:
             return super().peek()
         except AttributeError as ex:
@@ -60,8 +65,7 @@ class _MemoryQueue:
 
 
 class _DiskRequestQueue:
-    """
-    Base queue for requests that stores elements to disk and converts requests to/from dictionaries
+    """Base queue for requests that stores elements to disk and converts requests to/from dictionaries
     """
     def __init__(self, crawler, key):
         self.spider = crawler.spider
@@ -80,7 +84,13 @@ class _DiskRequestQueue:
         return request_from_dict(request, self.spider) if request else None
 
     def peek(self):
-        request = super().peek()  # NotImplementedError could be raised from the underlying queue
+        """Returns the next object to be returned by :meth:`pop`,
+        but without removing it from the queue.
+
+        Raises :exc:`NotImplementedError` if the underlying queue class does
+        not implement a ``peek`` method, which is optional for queues.
+        """
+        request = super().peek()
         return request_from_dict(request, self.spider) if request else None
 
 
@@ -128,24 +138,24 @@ _instance_warn_message = "{cls} is deprecated"
 PickleFifoDiskQueueNonRequest = create_deprecated_class(
     name="PickleFifoDiskQueueNonRequest",
     new_class=_PickleFifoSerializationDiskQueue,
-    _subclass_warn_message=_subclass_warn_message,
-    _instance_warn_message=_instance_warn_message,
+    subclass_warn_message=_subclass_warn_message,
+    instance_warn_message=_instance_warn_message,
 )
 PickleLifoDiskQueueNonRequest = create_deprecated_class(
     name="PickleLifoDiskQueueNonRequest",
     new_class=_PickleLifoSerializationDiskQueue,
-    _subclass_warn_message=_subclass_warn_message,
-    _instance_warn_message=_instance_warn_message,
+    subclass_warn_message=_subclass_warn_message,
+    instance_warn_message=_instance_warn_message,
 )
 MarshalFifoDiskQueueNonRequest = create_deprecated_class(
     name="MarshalFifoDiskQueueNonRequest",
     new_class=_MarshalFifoSerializationDiskQueue,
-    _subclass_warn_message=_subclass_warn_message,
-    _instance_warn_message=_instance_warn_message,
+    subclass_warn_message=_subclass_warn_message,
+    instance_warn_message=_instance_warn_message,
 )
 MarshalLifoDiskQueueNonRequest = create_deprecated_class(
     name="MarshalLifoDiskQueueNonRequest",
     new_class=_MarshalLifoSerializationDiskQueue,
-    _subclass_warn_message=_subclass_warn_message,
-    _instance_warn_message=_instance_warn_message,
+    subclass_warn_message=_subclass_warn_message,
+    instance_warn_message=_instance_warn_message,
 )
