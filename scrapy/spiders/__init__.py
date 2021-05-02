@@ -5,58 +5,64 @@ See documentation in docs/topics/spiders.rst
 """
 import logging
 import warnings
-from typing import Optional
+from typing import Any, Generator, List, NoReturn, Optional, Type, TypeVar, TYPE_CHECKING
 
 from scrapy import signals
-from scrapy.http import Request
+from scrapy.http.request import Request
+from scrapy.http.response import Response
+from scrapy.utils.deprecate import method_is_overridden
 from scrapy.utils.trackref import object_ref
 from scrapy.utils.url import url_is_from_spider
-from scrapy.utils.deprecate import method_is_overridden
+
+if TYPE_CHECKING:
+    from scrapy.crawler import Crawler
+    from scrapy.settings import Settings
+
+
+SpiderTypeVar = TypeVar("SpiderTypeVar", bound="Spider")
 
 
 class Spider(object_ref):
-    """Base class for scrapy spiders. All spiders must inherit from this
-    class.
-    """
+    """Base class for scrapy spiders. All spiders must inherit from this class"""
 
     name: Optional[str] = None
     custom_settings: Optional[dict] = None
 
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name: Optional[str] = None, **kwargs) -> None:
         if name is not None:
             self.name = name
         elif not getattr(self, 'name', None):
             raise ValueError(f"{type(self).__name__} must have a name")
         self.__dict__.update(kwargs)
         if not hasattr(self, 'start_urls'):
-            self.start_urls = []
+            self.start_urls: List[str] = []
 
     @property
-    def logger(self):
+    def logger(self) -> logging.LoggerAdapter:
         logger = logging.getLogger(self.name)
         return logging.LoggerAdapter(logger, {'spider': self})
 
-    def log(self, message, level=logging.DEBUG, **kw):
+    def log(self, message: str, level: int = logging.DEBUG, **kwargs) -> None:
         """Log the given message at the given log level
 
         This helper wraps a log call to the logger within the spider, but you
         can use it directly (e.g. Spider.logger.info('msg')) or use any other
         Python logger too.
         """
-        self.logger.log(level, message, **kw)
+        self.logger.log(level, message, **kwargs)
 
     @classmethod
-    def from_crawler(cls, crawler, *args, **kwargs):
+    def from_crawler(cls: Type[SpiderTypeVar], crawler: "Crawler", *args, **kwargs) -> SpiderTypeVar:
         spider = cls(*args, **kwargs)
         spider._set_crawler(crawler)
         return spider
 
-    def _set_crawler(self, crawler):
+    def _set_crawler(self, crawler: "Crawler") -> None:
         self.crawler = crawler
         self.settings = crawler.settings
         crawler.signals.connect(self.close, signals.spider_closed)
 
-    def start_requests(self):
+    def start_requests(self) -> Generator:
         cls = self.__class__
         if not self.start_urls and hasattr(self, 'start_url'):
             raise AttributeError(
@@ -76,7 +82,7 @@ class Spider(object_ref):
             for url in self.start_urls:
                 yield Request(url, dont_filter=True)
 
-    def make_requests_from_url(self, url):
+    def make_requests_from_url(self, url: str) -> Request:
         """ This method is deprecated. """
         warnings.warn(
             "Spider.make_requests_from_url method is deprecated: "
@@ -86,27 +92,26 @@ class Spider(object_ref):
         )
         return Request(url, dont_filter=True)
 
-    def _parse(self, response, **kwargs):
+    def _parse(self, response: Response, **kwargs) -> Any:
         return self.parse(response, **kwargs)
 
-    def parse(self, response, **kwargs):
+    def parse(self, response: Response, **kwargs) -> NoReturn:
         raise NotImplementedError(f'{self.__class__.__name__}.parse callback is not defined')
 
     @classmethod
-    def update_settings(cls, settings):
+    def update_settings(cls, settings: "Settings") -> None:
         settings.setdict(cls.custom_settings or {}, priority='spider')
 
     @classmethod
-    def handles_request(cls, request):
+    def handles_request(cls: Type[SpiderTypeVar], request: Request) -> bool:
         return url_is_from_spider(request.url, cls)
 
     @staticmethod
-    def close(spider, reason):
+    def close(spider: SpiderTypeVar, reason: str) -> Optional[Any]:
         closed = getattr(spider, 'closed', None)
-        if callable(closed):
-            return closed(reason)
+        return closed(reason) if callable(closed) else None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"<{type(self).__name__} {self.name!r} at 0x{id(self):0x}>"
 
     __repr__ = __str__
