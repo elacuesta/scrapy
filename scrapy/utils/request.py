@@ -8,8 +8,9 @@ from typing import Dict, Iterable, Optional, Tuple, Union
 from urllib.parse import urlunparse
 from weakref import WeakKeyDictionary
 
-from w3lib.http import basic_auth_header
+from w3lib.http import basic_auth_header, headers_dict_to_raw
 from w3lib.url import canonicalize_url
+
 
 from scrapy import Request, Spider
 from scrapy.utils.httpobj import urlparse_cached
@@ -95,7 +96,7 @@ def request_httprepr(request: Request) -> bytes:
     s = to_bytes(request.method) + b" " + to_bytes(path) + b" HTTP/1.1\r\n"
     s += b"Host: " + to_bytes(parsed.hostname or b'') + b"\r\n"
     if request.headers:
-        s += request.headers.to_string() + b"\r\n"
+        s += headers_dict_to_raw(request.headers) + b"\r\n"
     s += b"\r\n"
     s += request.body
     return s

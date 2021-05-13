@@ -8,12 +8,13 @@ import tempfile
 from typing import Any, Callable, Iterable, Optional, Tuple, Union
 from weakref import WeakKeyDictionary
 
+from twisted.web import http
+from w3lib.html import get_base_url as w3lib_get_base_url, get_meta_refresh as w3lib_get_meta_refresh
+from w3lib.http import headers_dict_to_raw
+
 import scrapy
 from scrapy.http.response import Response
-
-from twisted.web import http
 from scrapy.utils.python import to_bytes, to_unicode
-from w3lib import html
 
 
 _baseurl_cache: "WeakKeyDictionary[Response, str]" = WeakKeyDictionary()
@@ -23,7 +24,7 @@ def get_base_url(response: "scrapy.http.response.text.TextResponse") -> str:
     """Return the base url of the given response, joined with the response url"""
     if response not in _baseurl_cache:
         text = response.text[0:4096]
-        _baseurl_cache[response] = html.get_base_url(text, response.url, response.encoding)
+        _baseurl_cache[response] = w3lib_get_base_url(text, response.url, response.encoding)
     return _baseurl_cache[response]
 
 
@@ -37,7 +38,7 @@ def get_meta_refresh(
     """Parse the http-equiv refrsh parameter from the given response"""
     if response not in _metaref_cache:
         text = response.text[0:4096]
-        _metaref_cache[response] = html.get_meta_refresh(
+        _metaref_cache[response] = w3lib_get_meta_refresh(
             text, response.url, response.encoding, ignore_tags=ignore_tags)
     return _metaref_cache[response]
 
@@ -63,7 +64,7 @@ def response_httprepr(response: Response) -> bytes:
         b"\r\n",
     ]
     if response.headers:
-        values.extend([response.headers.to_string(), b"\r\n"])
+        values.extend([headers_dict_to_raw(response.headers), b"\r\n"])
     values.extend([b"\r\n", response.body])
     return b"".join(values)
 

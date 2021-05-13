@@ -325,7 +325,7 @@ class ScrapyAgent:
         # request details
         url = urldefrag(request.url)[0]
         method = to_bytes(request.method)
-        headers = TxHeaders(request.headers)
+        headers = TxHeaders({key: request.headers.getlist(key) for key in request.headers.keys()})
         if isinstance(agent, self._TunnelingAgent):
             headers.removeHeader(b'Proxy-Authorization')
         if request.body:

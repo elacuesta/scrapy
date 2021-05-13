@@ -33,8 +33,8 @@ class Command(ScrapyCommand):
                           help="do not handle HTTP 3xx status codes and print response as-is")
 
     def _print_headers(self, headers, prefix):
-        for key, values in headers.items():
-            for value in values:
+        for key in headers.keys():
+            for value in headers.getlist(key):
                 self._print_bytes(prefix + b' ' + key + b': ' + value)
 
     def _print_response(self, response, opts):
