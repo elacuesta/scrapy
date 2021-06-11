@@ -98,8 +98,9 @@ class TunnelingTCP4ClientEndpoint(TCP4ClientEndpoint):
     with this endpoint comes from the pool and a CONNECT has already been issued
     for it.
     """
-
-    _responseMatcher = re.compile(br'HTTP/1\.. (?P<status>\d{3})(?P<reason>.{,32})')
+    _truncatedLength = 1000
+    _responseAnswer = r'HTTP/1\.. (?P<status>\d{3})(?P<reason>.{,' + str(_truncatedLength) + r'})'
+    _responseMatcher = re.compile(_responseAnswer.encode())
 
     def __init__(self, reactor, host, port, proxyConf, contextFactory, timeout=30, bindAddress=None):
         proxyHost, proxyPort, self._proxyAuthHeader = proxyConf
@@ -144,7 +145,7 @@ class TunnelingTCP4ClientEndpoint(TCP4ClientEndpoint):
                 extra = {'status': int(respm.group('status')),
                          'reason': respm.group('reason').strip()}
             else:
-                extra = rcvd_bytes[:32]
+                extra = rcvd_bytes[:self._truncatedLength]
             self._tunnelReadyDeferred.errback(
                 TunnelError('Could not open CONNECT tunnel with proxy '
                             f'{self._host}:{self._port} [{extra!r}]')
@@ -282,9 +283,9 @@ class ScrapyAgent:
             if omitConnectTunnel:
                 warnings.warn(
                     "Using HTTPS proxies in the noconnect mode is deprecated. "
-                    "If you use Zyte Smart Proxy Manager (formerly Crawlera), "
-                    "it doesn't require this mode anymore, so you should "
-                    "update scrapy-crawlera to 1.3.0+ and remove '?noconnect' "
+                    "If you use Zyte Smart Proxy Manager, it doesn't require "
+                    "this mode anymore, so you should update scrapy-crawlera "
+                    "to scrapy-zyte-smartproxy and remove '?noconnect' "
                     "from the Zyte Smart Proxy Manager URL.",
                     ScrapyDeprecationWarning,
                 )
