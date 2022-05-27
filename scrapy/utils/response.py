@@ -66,7 +66,7 @@ def response_httprepr(response: Response) -> bytes:
         b"\r\n",
     ]
     if response.headers:
-        values.extend([response.headers.to_string(), b"\r\n"])
+        values.extend([response.headers.to_bytes(), b"\r\n"])
     values.extend([b"\r\n", response.body])
     return b"".join(values)
 

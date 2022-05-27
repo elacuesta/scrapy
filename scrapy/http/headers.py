@@ -1,40 +1,90 @@
+import warnings
+from typing import List, Union
+
 from w3lib.http import headers_dict_to_raw
 
+from scrapy.exceptions import ScrapyDeprecationWarning
 from scrapy.utils.datatypes import CaseInsensitiveDict, CaselessDict
 from scrapy.utils.python import to_unicode
 
 
-class Headers(CaselessDict):
-    """Case insensitive http headers dictionary"""
+class _HeadersMixin:
+    """TODO: merge this class with HTTPHeaders once Headers is removed,
+    these methods are here to avoid code duplication.
+    """
 
-    def __init__(self, seq=None, encoding='utf-8'):
+    def __init__(self, seq=None, encoding="utf-8"):
         self.encoding = encoding
         super().__init__(seq)
 
-    def normkey(self, key):
-        """Normalize key to bytes"""
+    def _tobytes(self, value: Union[str, bytes, int, float]) -> bytes:
+        if isinstance(value, bytes):
+            return value
+        elif isinstance(value, str):
+            return value.encode(self.encoding)
+        elif isinstance(value, (int, float)):
+            return str(value).encode(self.encoding)
+        else:
+            raise TypeError(f"Unsupported value type: {type(value)}")
+
+    def _normkey(self, key: Union[str, bytes]):
         return self._tobytes(key.title())
 
-    def normvalue(self, value):
-        """Normalize values to bytes"""
+    def _normvalue(self, value: Union[str, bytes, int, float]) -> List[bytes]:
         if value is None:
             value = []
         elif isinstance(value, (str, bytes)):
             value = [value]
-        elif not hasattr(value, '__iter__'):
+        elif not hasattr(value, "__iter__"):
             value = [value]
-
         return [self._tobytes(x) for x in value]
 
-    def _tobytes(self, x):
-        if isinstance(x, bytes):
-            return x
-        elif isinstance(x, str):
-            return x.encode(self.encoding)
-        elif isinstance(x, int):
-            return str(x).encode(self.encoding)
-        else:
-            raise TypeError(f'Unsupported value type: {type(x)}')
+    def appendlist(self, key: Union[str, bytes], value: Union[str, bytes, int, float]) -> None:
+        temp = self[key]
+        temp.extend(self._normvalue(value))
+        self[key] = temp
+
+    def to_bytes(self) -> bytes:
+        return headers_dict_to_raw(self)
+
+    def to_unicode_dict(self):
+        """Return headers as a CaseInsensitiveDict with unicode keys and values.
+        Multiple values are joined with ",".
+        """
+        return CaseInsensitiveDict(
+            (
+                to_unicode(key, encoding=self.encoding),
+                to_unicode(b",".join(value), encoding=self.encoding)
+            )
+            for key, value in self.items()
+        )
+
+
+class HTTPHeaders(_HeadersMixin, CaseInsensitiveDict):
+    pass
+
+
+class Headers(_HeadersMixin, CaselessDict):
+    """Case insensitive http headers dictionary"""
+
+    def __new__(cls, *args, **kwargs):
+        if issubclass(cls, Headers):
+            warnings.warn(
+                "scrapy.http.headers.Headers is deprecated,"
+                " please use scrapy.http.headers.HTTPHeaders instead",
+                category=ScrapyDeprecationWarning,
+                stacklevel=2,
+            )
+        return super().__new__(cls, *args, **kwargs)
+
+    def normkey(self, key):
+        return self._normkey(key)
+
+    def normvalue(self, value):
+        return self._normvalue(value)
+
+    def to_string(self):
+        return self.to_bytes()
 
     def __getitem__(self, key):
         try:
@@ -72,18 +122,6 @@ class Headers(CaselessDict):
 
     def values(self):
         return [self[k] for k in self.keys()]
-
-    def to_string(self):
-        return headers_dict_to_raw(self)
-
-    def to_unicode_dict(self):
-        """ Return headers as a CaseInsensitiveDict with unicode keys
-        and unicode values. Multiple values are joined with ','.
-        """
-        return CaseInsensitiveDict(
-            (to_unicode(key, encoding=self.encoding), to_unicode(b','.join(value), encoding=self.encoding))
-            for key, value in self.items()
-        )
 
     def __copy__(self):
         return self.__class__(self)
