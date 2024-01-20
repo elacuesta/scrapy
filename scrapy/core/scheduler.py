@@ -4,7 +4,7 @@ import json
 import logging
 from abc import abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Any, cast, Optional, Protocol
 
 from twisted.internet.defer import Deferred
 
@@ -121,9 +121,6 @@ class BaseScheduler(metaclass=BaseSchedulerMeta):
         raise NotImplementedError()
 
 
-SchedulerTV = TypeVar("SchedulerTV", bound="Scheduler")
-
-
 class Scheduler(BaseScheduler):
     """
     Default Scrapy scheduler. This implementation also handles duplication
@@ -196,7 +193,7 @@ class Scheduler(BaseScheduler):
         self.crawler: Optional[Crawler] = crawler
 
     @classmethod
-    def from_crawler(cls: Type[SchedulerTV], crawler: Crawler) -> SchedulerTV:
+    def from_crawler(cls, crawler: Crawler) -> Self:
         """
         Factory method, initializes the scheduler with arguments taken from the crawl settings
         """
